@@ -8,7 +8,7 @@
 // CONSTANTS 
 // ---------------------------------------
 
-const GRID_SIZE = 4;
+const GRID_SIZE = 32;
 
 
 const canvas = document.querySelector("canvas");
@@ -102,10 +102,14 @@ const cellShaderModule = device.createShaderModule(
                 @group(0) @binding(0) var<uniform> grid: vec2f;
 
                 @vertex
-                fn vertexMain(@location(0) pos: vec2f)  -> 
+                fn vertexMain(@location(0) pos: vec2f, @builtin(instance_index) instance: u32)  -> 
                     @builtin(position) vec4f {
-
-                    return vec4(pos / grid,0,1);  
+                   
+                    let i = f32(instance);
+                    let cell = vec2f(i % grid.x,floor(i / grid.x ));
+                    let cellOffset = cell / grid * 2;
+                    let gridPos = (pos + 1) / grid - 1 + cellOffset;
+                    return vec4(gridPos ,0,1);  
 
                 }
                 
@@ -170,7 +174,7 @@ pass.setVertexBuffer(0, vertexBuffer);
 
 pass.setBindGroup(0, bindGroup); //set the uniform bind group, 0 corresponds to @group(0) in the shader code.
 
-pass.draw(vertices.length/2); 
+pass.draw(vertices.length/2, GRID_SIZE * GRID_SIZE); 
 
 //7. end the pass immediately
 pass.end()

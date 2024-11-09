@@ -99,23 +99,44 @@ const cellShaderModule = device.createShaderModule(
 {
     label: "Cell Shader",
     code:   `
+                struct VertexInput {
+                    @location(0) pos : vec2f,
+                    @builtin(instance_index) instance: u32,
+                };
+
+                struct VertexOutput {
+                    @builtin(position) pos : vec4f,
+                    @location(0) cell: vec2f,
+                };
+
                 @group(0) @binding(0) var<uniform> grid: vec2f;
 
                 @vertex
-                fn vertexMain(@location(0) pos: vec2f, @builtin(instance_index) instance: u32)  -> 
-                    @builtin(position) vec4f {
+                fn vertexMain(input: VertexInput)  -> 
+                    VertexOutput {
                    
-                    let i = f32(instance);
+                    let i = f32(input.instance);
                     let cell = vec2f(i % grid.x,floor(i / grid.x ));
                     let cellOffset = cell / grid * 2;
-                    let gridPos = (pos + 1) / grid - 1 + cellOffset;
-                    return vec4(gridPos ,0,1);  
+                    let gridPos = (input.pos + 1) / grid - 1 + cellOffset;
+
+
+                    var output: VertexOutput;
+                    output.pos = vec4f( gridPos, 0,1);
+                    output.cell = cell;
+                    return output;  
 
                 }
-                
+               
+
+                struct FragInput{
+                    @location(0) cell: vec2f,
+                };
+
                 @fragment
-                fn fragmentMain() -> @location(0) vec4f {
-                    return vec4f(1,0,0,1); 
+                fn fragmentMain(input: FragInput) -> @location(0) vec4f {
+                    let c = input.cell/grid;
+                    return vec4f(c,1-c.x,1); 
 
                 }
             `
@@ -161,7 +182,7 @@ const pass = encoder.beginRenderPass(
     colorAttachments:[{
         view: context.getCurrentTexture().createView(),
         loadOp: "clear",  //clear the texture when the render pass starts
-        clearValue: [0,0.5,0.7,1],     //set the clear color of the canvas
+        clearValue: [0,0.1,0.1,1],     //set the clear color of the canvas
         storeOp: "store", //store the results back into the texture after the pass
     }]
 });

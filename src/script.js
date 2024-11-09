@@ -1,6 +1,6 @@
-/*
+/**
  * This is an attempt at conways game of life, using webGPU.
- *
+ * https://codelabs.developers.google.com/your-first-webgpu-app 
  *
  */ 
 
@@ -36,6 +36,96 @@ context.configure(
     });
 
 
+
+
+
+//-------------------------------------------------------------
+// DRAWING THE GEOMETRY
+//-------------------------------------------------------------
+
+//1. set up the clip space verticies
+const vertices = new Float32Array([
+//   X,    Y,
+  -0.8, -0.8, // Triangle 1 (Blue)
+   0.8, -0.8,
+   0.8,  0.8,
+
+  -0.8, -0.8, // Triangle 2 (Red)
+   0.8,  0.8,
+  -0.8,  0.8,
+])
+
+//2. create a buffer to hold the verticies
+const vertexBuffer = device.createBuffer({
+    label: "Cell vertices", //labes are used in error messages
+    size: vertices.byteLength,
+    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+})
+
+//3. copu the vertex data into the buffers memory
+device.queue.writeBuffer(vertexBuffer, /*buffer offset*/ 0, vertices);
+
+//4. now we have a buffer, cool, but the 'puter doesnt know anything about the data stored
+//   so lets give it more information with the GPUVertexBufferLayout dictionary
+
+const vertexBufferLayout = 
+{
+    arrayStride:8, //number of bytes the gpu need to skip to find the next vertex
+    attributes: [{ //individual info encoded into each vertex
+        format: "float32x2",  //fpuVertexFormat, in this case 2 float 32 integers
+        offset:0,           //how many bytes into the vertex this particular attribute starts(?)
+        shaderLocation:0,   //number betweeen 0 - 15, must be unique for every attribute
+        }]
+};
+
+
+
+//5. create the shader
+//Note the "-> ..." syntax, represents the return type
+const cellShaderModule = device.createShaderModule(
+{
+    label: "Cell Shader",
+    code:   `
+                @vertex
+                fn vertexMain(@location(0) pos: vec2f)  -> 
+                    @builtin(position) vec4f {
+
+                    return vec4(pos,0,1);  
+
+                }
+                
+                @fragment
+                fn fragmentMain() -> @location(0) vec4f {
+                    return vec4f(1,0,0,1); 
+
+                }
+            `
+});
+
+
+//6. Finaly, lets create the render pipeline
+const cellPipeline = device.createRenderPipeline({
+    label: "Cell pipeline",
+    layout: "auto",             //describes what types of inputs the pipeline needs
+    vertex: {
+        module: cellShaderModule,
+        entryPoint: "vertexMain",
+        buffers: [vertexBufferLayout]
+    },
+    fragment: {
+        module: cellShaderModule,
+        entryPoint: "fragmentMain",
+        targets:[{
+            format: canvasFormat
+        }]
+    }
+});
+
+
+
+
+
+
 //5. Lets send some instructions to the gpu. In order to do that, we need to set up the GPU encoder. which gives us an interface to talk to the gpu
 const encoder = device.createCommandEncoder();
 
@@ -51,42 +141,26 @@ const pass = encoder.beginRenderPass(
 });
 
 
+
+// DRAWING GEOMERTRY: 8. draw the square:
+pass.setPipeline(cellPipeline);
+pass.setVertexBuffer(0, vertexBuffer);
+pass.draw(vertices.length/2); 
+
 //7. end the pass immediately
 pass.end()
 
 //8. Lets create a command buffer. This holds all the commands we've specified above. 
 //   We create this buffer by calling the encoder.finish() command
-const commandBuffer = encoder.finish();
+//const commandBuffer = encoder.finish();
 
 //.9 Submit your commands to the gpu command queue. this will ensure execution is done correclty and in order
 //   Note. once you've submitted a buffer, it cannot be used again
-device.queue.submit([commandBuffer]);
+//device.queue.submit([commandBuffer]);
 
 //. 8->9  Taking into consideration the above note. We should combine step 8 and 9
-//device.queue.submit([encoder.finish()])
+device.queue.submit([encoder.finish()])
 
-//.10 After you submit your commands, you let javascript take the wheel again. if you want to update the canvas contents, you need to record and submit a new buffer, calling context.getCurrentTexture again to get a new texture for a render pass
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+//After you submit your commands, you let javascript take the wheel again. if you want to update the canvas contents, you need to record and submit a new buffer, calling context.getCurrentTexture again to get a new texture for a render pass
 
 

@@ -4,6 +4,13 @@
  *
  */ 
 
+// ---------------------------------------
+// CONSTANTS 
+// ---------------------------------------
+
+const GRID_SIZE = 4;
+
+
 const canvas = document.querySelector("canvas");
 
 //1. check that the webGPU is supported on the current device
@@ -36,8 +43,14 @@ context.configure(
     });
 
 
-
-
+//create a uniform buffer that descibes the grid
+const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE])
+const uniformBuffer = device.createBuffer({
+    label: "Grid Uniforms",
+    size: uniformArray.byteLength,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+});
+device.queue.writeBuffer(uniformBuffer, 0, uniformArray)
 
 //-------------------------------------------------------------
 // DRAWING THE GEOMETRY
@@ -86,11 +99,13 @@ const cellShaderModule = device.createShaderModule(
 {
     label: "Cell Shader",
     code:   `
+                @group(0) @binding(0) var<uniform> grid: vec2f;
+
                 @vertex
                 fn vertexMain(@location(0) pos: vec2f)  -> 
                     @builtin(position) vec4f {
 
-                    return vec4(pos,0,1);  
+                    return vec4(pos / grid,0,1);  
 
                 }
                 
@@ -122,8 +137,15 @@ const cellPipeline = device.createRenderPipeline({
 });
 
 
-
-
+//set up the bind group for the uniform buffer
+const bindGroup = device.createBindGroup({
+    label: "Cell renderer bind group",
+    layout: cellPipeline.getBindGroupLayout(0), //describes which types of resources this bind group containes
+    entries: [{
+        binding: 0,
+        resource: { buffer : uniformBuffer}
+    }],
+});
 
 
 //5. Lets send some instructions to the gpu. In order to do that, we need to set up the GPU encoder. which gives us an interface to talk to the gpu
@@ -145,6 +167,9 @@ const pass = encoder.beginRenderPass(
 // DRAWING GEOMERTRY: 8. draw the square:
 pass.setPipeline(cellPipeline);
 pass.setVertexBuffer(0, vertexBuffer);
+
+pass.setBindGroup(0, bindGroup); //set the uniform bind group, 0 corresponds to @group(0) in the shader code.
+
 pass.draw(vertices.length/2); 
 
 //7. end the pass immediately
